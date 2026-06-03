@@ -1,10 +1,27 @@
 from flask import Flask, render_template_string, request, redirect
 import os
+import sqlite3
 
 app = Flask(__name__)
 
-# Arquivo onde os dados serão salvos
-ARQUIVO_DADOS = "feedbacks.txt"
+# Nome do arquivo de banco de dados
+DB_NAME = "banco_feedbacks.db"
+
+# Função para criar a tabela no banco de dados se ela não existir
+def criar_banco():
+    conexao = sqlite3.connect(DB_NAME)
+    cursor = conexao.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS feedbacks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT,
+            whatsapp TEXT,
+            nota TEXT,
+            comentario TEXT
+        )
+    """)
+    conexao.commit()
+    conexao.close()
 
 PAGINA_CLIENTE = """
 <!DOCTYPE html>
@@ -98,10 +115,10 @@ PAINEL_GERENTE = """
             </tr>
             {% for f in lista_feedbacks %}
             <tr>
-                <td>{{ f.nome }}</td>
-                <td>{{ f.whatsapp }}</td>
-                <td>{{ f.nota }}</td>
-                <td>{{ f.comentario }}</td>
+                <td>{{ f[0] }}</td>
+                <td>{{ f[1] }}</td>
+                <td>{{ f[2] }}</td>
+                <td>{{ f[3] }}</td>
             </tr>
             {% endfor %}
         </table>
@@ -116,38 +133,33 @@ def home():
 
 @app.route('/salvar', methods=['POST'])
 def salvar():
-    nota = request.form.get('nota')
-    comentario = request.form.get('comentario') or "Sem comentário"
     nome = request.form.get('nome') or "Anônimo"
     whatsapp = request.form.get('whatsapp') or "Não informou"
+    nota = request.form.get('nota')
+    comentario = request.form.get('comentario') or "Sem comentário"
 
-    # Salva usando ponto e vírgula para organizar as colunas
-    with open(ARQUIVO_DADOS, "a", encoding="utf-8") as arquivo:
-        arquivo.write(f"{nome};{whatsapp};{nota};{comentario}\n")
+    # Salva no banco de dados SQLite
+    conexao = sqlite3.connect(DB_NAME)
+    cursor = conexao.cursor()
+    cursor.execute("INSERT INTO feedbacks (nome, whatsapp, nota, comentario) VALUES (?, ?, ?, ?)", 
+                   (nome, whatsapp, nota, comentario))
+    conexao.commit()
+    conexao.close()
 
     return render_template_string(PAGINA_AGRADECIMENTO)
 
 @app.route('/gerente')
 def gerente():
-    lista_feedbacks = []
-    try:
-        with open(ARQUIVO_DADOS, "r", encoding="utf-8") as arquivo:
-            for linha in arquivo:
-                if ";" in linha:
-                    partes = linha.strip().split(";")
-                    if len(partes) == 4:
-                        lista_feedbacks.append({
-                            "nome": partes[0],
-                            "whatsapp": partes[1],
-                            "nota": partes[2],
-                            "comentario": partes[3]
-                        })
-    except FileNotFoundError:
-        pass
+    # Busca os dados salvos no banco
+    conexao = sqlite3.connect(DB_NAME)
+    cursor = conexao.cursor()
+    cursor.execute("SELECT nome, whatsapp, nota, comentario FROM feedbacks ORDER BY id DESC")
+    lista_feedbacks = cursor.fetchall()
+    conexao.close()
 
     return render_template_string(PAINEL_GERENTE, lista_feedbacks=lista_feedbacks)
 
 if __name__ == '__main__':
-    # Configuração necessária para rodar na internet (Render)
+    criar_banco()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
