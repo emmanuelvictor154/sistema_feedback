@@ -7,11 +7,10 @@ app = Flask(__name__)
 
 # ========================================================
 # CONFIGURAÇÃO PROFISSIONAL E SEGURA PARA PRODUÇÃO E VENDA
-# O sistema puxa todas as chaves e links do ambiente oculto do Render
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-# LOGIN DO GERENTE (Puxa do Render com valores padrão de segurança)
+# LOGIN DO GERENTE (Puxa do Render)
 GERENTE_USER = os.environ.get("GERENTE_USER", "admin")
 GERENTE_PASSWORD = os.environ.get("GERENTE_PASSWORD", "divino123")
 # ========================================================
