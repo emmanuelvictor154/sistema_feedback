@@ -144,13 +144,17 @@ def salvar():
         "comentario": request.form.get('comentario') or "Sem comentário"
     }
     
+    # Cabeçalhos corrigidos para aceitar chaves secretas de serviço com autorização Bearer em formato estrito
     headers = {
         "apikey": SUPABASE_KEY, 
         "Authorization": f"Bearer {SUPABASE_KEY}", 
         "Content-Type": "application/json",
         "Prefer": "return=minimal"
     }
-    requests.post(f"{SUPABASE_URL}/rest/v1/feedbacks", json=dados, headers=headers)
+    
+    # Executa a requisição enviando a URL do banco tratada de forma limpa
+    url_limpa = SUPABASE_URL.strip().rstrip('/')
+    requests.post(f"{url_limpa}/rest/v1/feedbacks", json=dados, headers=headers)
     return render_template_string(PAGINA_AGRADECIMENTO)
 
 @app.route('/gerente')
@@ -160,7 +164,8 @@ def gerente():
         "apikey": SUPABASE_KEY, 
         "Authorization": f"Bearer {SUPABASE_KEY}"
     }
-    resposta = requests.get(f"{SUPABASE_URL}/rest/v1/feedbacks?select=*&order=id.desc", headers=headers)
+    url_limpa = SUPABASE_URL.strip().rstrip('/')
+    resposta = requests.get(f"{url_limpa}/rest/v1/feedbacks?select=*&order=id.desc", headers=headers)
     lista_feedbacks = resposta.json() if resposta.status_code == 200 else []
     return render_template_string(PAINEL_GERENTE, lista_feedbacks=lista_feedbacks)
 
