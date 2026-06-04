@@ -1,14 +1,31 @@
-from flask import Flask, render_template_string, request, redirect
+from flask import Flask, render_template_string, request, redirect, Response
 import os
 import requests
+from functools import wraps
 
 app = Flask(__name__)
 
 # ========================================================
-# ⚠️ COLE AS SUAS CHAVES DO SUPABASE AQUI DENTRO DAS ASPAS
-SUPABASE_URL = "https://cpuzrnhgxzkrrtomviab.supabase.co"
-SUPABASE_KEY = "sb_publishable_VIMjM0Vk_47JKbacz9xJEw_U_byMYBs"
+# CONFIGURAÇÃO SEGURA PARA PRODUÇÃO E VENDA
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+# LOGIN DO GERENTE (O Render vai gerenciar o usuário e a senha)
+GERENTE_USER = os.environ.get("GERENTE_USER", "admin")
+GERENTE_PASSWORD = os.environ.get("GERENTE_PASSWORD", "divino123")
 # ========================================================
+
+def requer_autenticacao(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not (auth.username == GERENTE_USER and auth.password == GERENTE_PASSWORD):
+            return Response(
+                'Acesso negado. Insira o usuário e senha corretos.', 401,
+                {'WWW-Authenticate': 'Basic realm="Login Requerido"'}
+            )
+        return f(*args, **kwargs)
+    return decorated
 
 PAGINA_CLIENTE = """
 <!DOCTYPE html>
@@ -127,15 +144,22 @@ def salvar():
         "comentario": request.form.get('comentario') or "Sem comentário"
     }
     
-    # Envia os dados direto para o Supabase salvar permanentemente
-    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json"}
+    headers = {
+        "apikey": SUPABASE_KEY, 
+        "Authorization": f"Bearer {SUPABASE_KEY}", 
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+    }
     requests.post(f"{SUPABASE_URL}/rest/v1/feedbacks", json=dados, headers=headers)
     return render_template_string(PAGINA_AGRADECIMENTO)
 
 @app.route('/gerente')
+@requer_autenticacao
 def gerente():
-    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
-    # Busca a lista completa diretamente do Supabase ordenando pelos mais novos
+    headers = {
+        "apikey": SUPABASE_KEY, 
+        "Authorization": f"Bearer {SUPABASE_KEY}"
+    }
     resposta = requests.get(f"{SUPABASE_URL}/rest/v1/feedbacks?select=*&order=id.desc", headers=headers)
     lista_feedbacks = resposta.json() if resposta.status_code == 200 else []
     return render_template_string(PAINEL_GERENTE, lista_feedbacks=lista_feedbacks)
