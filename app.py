@@ -1,27 +1,14 @@
 from flask import Flask, render_template_string, request, redirect
 import os
-import sqlite3
+import requests
 
 app = Flask(__name__)
 
-# Nome do arquivo de banco de dados
-DB_NAME = "banco_feedbacks.db"
-
-# Função para criar a tabela no banco de dados se ela não existir
-def criar_banco():
-    conexao = sqlite3.connect(DB_NAME)
-    cursor = conexao.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS feedbacks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT,
-            whatsapp TEXT,
-            nota TEXT,
-            comentario TEXT
-        )
-    """)
-    conexao.commit()
-    conexao.close()
+# ========================================================
+# ⚠️ COLE AS SUAS CHAVES DO SUPABASE AQUI DENTRO DAS ASPAS
+SUPABASE_URL = "https://cpuzrnhgxzkrrtomviab.supabase.co"
+SUPABASE_KEY = "sb_publishable_VIMjM0Vk_47JKbacz9xJEw_U_byMYBs"
+# ========================================================
 
 PAGINA_CLIENTE = """
 <!DOCTYPE html>
@@ -105,7 +92,7 @@ PAINEL_GERENTE = """
 <body>
     <div class="container">
         <h2>📊 Painel de Avaliações e Leads (Gerente)</h2>
-        <p>Abaixo estão os feedbacks dos clientes e a lista de contatos para marketing:</p>
+        <p>Abaixo estão os feedbacks salvos permanentemente na nuvem:</p>
         <table>
             <tr>
                 <th>Nome</th>
@@ -115,10 +102,10 @@ PAINEL_GERENTE = """
             </tr>
             {% for f in lista_feedbacks %}
             <tr>
-                <td>{{ f[0] }}</td>
-                <td>{{ f[1] }}</td>
-                <td>{{ f[2] }}</td>
-                <td>{{ f[3] }}</td>
+                <td>{{ f.nome }}</td>
+                <td>{{ f.whatsapp }}</td>
+                <td>{{ f.nota }}</td>
+                <td>{{ f.comentario }}</td>
             </tr>
             {% endfor %}
         </table>
@@ -133,33 +120,26 @@ def home():
 
 @app.route('/salvar', methods=['POST'])
 def salvar():
-    nome = request.form.get('nome') or "Anônimo"
-    whatsapp = request.form.get('whatsapp') or "Não informou"
-    nota = request.form.get('nota')
-    comentario = request.form.get('comentario') or "Sem comentário"
-
-    # Salva no banco de dados SQLite
-    conexao = sqlite3.connect(DB_NAME)
-    cursor = conexao.cursor()
-    cursor.execute("INSERT INTO feedbacks (nome, whatsapp, nota, comentario) VALUES (?, ?, ?, ?)", 
-                   (nome, whatsapp, nota, comentario))
-    conexao.commit()
-    conexao.close()
-
+    dados = {
+        "nome": request.form.get('nome') or "Anônimo",
+        "whatsapp": request.form.get('whatsapp') or "Não informou",
+        "nota": request.form.get('nota'),
+        "comentario": request.form.get('comentario') or "Sem comentário"
+    }
+    
+    # Envia os dados direto para o Supabase salvar permanentemente
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json"}
+    requests.post(f"{SUPABASE_URL}/rest/v1/feedbacks", json=dados, headers=headers)
     return render_template_string(PAGINA_AGRADECIMENTO)
 
 @app.route('/gerente')
 def gerente():
-    # Busca os dados salvos no banco
-    conexao = sqlite3.connect(DB_NAME)
-    cursor = conexao.cursor()
-    cursor.execute("SELECT nome, whatsapp, nota, comentario FROM feedbacks ORDER BY id DESC")
-    lista_feedbacks = cursor.fetchall()
-    conexao.close()
-
+    headers = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"}
+    # Busca a lista completa diretamente do Supabase ordenando pelos mais novos
+    resposta = requests.get(f"{SUPABASE_URL}/rest/v1/feedbacks?select=*&order=id.desc", headers=headers)
+    lista_feedbacks = resposta.json() if resposta.status_code == 200 else []
     return render_template_string(PAINEL_GERENTE, lista_feedbacks=lista_feedbacks)
 
 if __name__ == '__main__':
-    criar_banco()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
