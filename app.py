@@ -144,7 +144,6 @@ def salvar():
         "comentario": request.form.get('comentario') or "Sem comentário"
     }
     
-    # Cabeçalhos corrigidos para aceitar chaves secretas de serviço com autorização Bearer em formato estrito
     headers = {
         "apikey": SUPABASE_KEY, 
         "Authorization": f"Bearer {SUPABASE_KEY}", 
@@ -152,7 +151,6 @@ def salvar():
         "Prefer": "return=minimal"
     }
     
-    # Executa a requisição enviando a URL do banco tratada de forma limpa
     url_limpa = SUPABASE_URL.strip().rstrip('/')
     requests.post(f"{url_limpa}/rest/v1/feedbacks", json=dados, headers=headers)
     return render_template_string(PAGINA_AGRADECIMENTO)
