@@ -2,6 +2,7 @@ from flask import Flask, render_template_string, request, redirect, Response
 import os
 import requests
 from functools import wraps
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -98,7 +99,7 @@ PAINEL_GERENTE = """
     <title>Painel do Gerente - Divino Fogão</title>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f6f9; padding: 30px; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
         h2 { color: #333; border-bottom: 2px solid #d32f2f; padding-bottom: 10px; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
@@ -106,6 +107,8 @@ PAINEL_GERENTE = """
         tr:hover { background-color: #f1f1f1; }
         .btn-exportar { background-color: #25D366; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold; display: inline-block; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .btn-exportar:hover { background-color: #1ebd59; }
+        /* Estilo para destacar avaliações ruins */
+        .nota-ruim { background-color: #ffdde0 !important; color: #c62828; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -118,16 +121,19 @@ PAINEL_GERENTE = """
         
         <table id="tabela-feedbacks">
             <tr>
+                <th>Horário</th>
                 <th>Nome</th>
                 <th>WhatsApp</th>
                 <th>Nota</th>
                 <th>Comentário</th>
             </tr>
             {% for f in lista_feedbacks %}
-            <tr>
+            <!-- Define a classe 'nota-ruim' se a nota for menor ou igual a 2 -->
+            <tr class="{% if f.nota|int <= 2 %}nota-ruim{% endif %}">
+                <td>{{ f.horario_formatado }}</td>
                 <td>{{ f.nome }}</td>
                 <td>{{ f.whatsapp }}</td>
-                <td>{{ f.nota }}</td>
+                <td>{{ f.nota }} ⭐</td>
                 <td>{{ f.comentario }}</td>
             </tr>
             {% endfor %}
@@ -143,20 +149,21 @@ PAINEL_GERENTE = """
         // Função profissional para baixar os contatos válidos no formato Excel (CSV)
         function exportarWhatsApps() {
             let csvContent = "data:text/csv;charset=utf-8,\\uFEFF";
-            csvContent += "Nome;WhatsApp\\n";
+            csvContent += "Horário;Nome;WhatsApp\\n";
 
             const linhas = document.querySelectorAll("#tabela-feedbacks tr");
 
             for (let i = 1; i < linhas.length; i++) {
                 const colunas = linhas[i].querySelectorAll("td");
-                if (colunas.length >= 2) {
-                    let nome = colunas[0].innerText.trim();
-                    let whatsapp = colunas[1].innerText.trim();
+                if (colunas.length >= 3) {
+                    let horario = colunas[0].innerText.trim();
+                    let nome = colunas[1].innerText.trim();
+                    let whatsapp = colunas[2].innerText.trim();
 
                     // Só adiciona na lista se tiver deixado um número válido
                     if (whatsapp !== "Não informou" && whatsapp !== "") {
                         nome = nome.replace(/;/g, ","); // Evita quebra de colunas
-                        csvContent += `${nome};${whatsapp}\\n`;
+                        csvContent += `${horario};${nome};${whatsapp}\\n`;
                     }
                 }
             }
@@ -207,7 +214,23 @@ def gerente():
     }
     url_limpa = SUPABASE_URL.strip().rstrip('/')
     resposta = requests.get(f"{url_limpa}/rest/v1/feedbacks?select=*&order=id.desc", headers=headers)
-    lista_feedbacks = resposta.json() if resposta.status_code == 200 else []
+    
+    lista_feedbacks = []
+    if resposta.status_code == 200:
+        raw_feedbacks = resposta.json()
+        for f in raw_feedbacks:
+            # Pega o created_at do Supabase e formata para o padrão brasileiro (DD/MM/AAAA HH:MM)
+            if 'created_at' in f and f['created_at']:
+                try:
+                    # Formato padrão ISO do Supabase (ex: 2026-06-08T12:00:00.000000+00:00)
+                    dt = datetime.fromisoformat(f['created_at'].replace('Z', '+00:00'))
+                    f['horario_formatado'] = dt.strftime('%d/%m/%Y %H:%M')
+                except:
+                    f['horario_formatado'] = "---"
+            else:
+                f['horario_formatado'] = "---"
+            lista_feedbacks.append(f)
+            
     return render_template_string(PAINEL_GERENTE, lista_feedbacks=lista_feedbacks)
 
 if __name__ == '__main__':
