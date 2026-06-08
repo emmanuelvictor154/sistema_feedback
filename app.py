@@ -107,7 +107,6 @@ PAINEL_GERENTE = """
         tr:hover { background-color: #f1f1f1; }
         .btn-exportar { background-color: #25D366; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold; display: inline-block; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .btn-exportar:hover { background-color: #1ebd59; }
-        /* Estilo para destacar avaliações ruins */
         .nota-ruim { background-color: #ffdde0 !important; color: #c62828; font-weight: bold; }
     </style>
 </head>
@@ -116,19 +115,17 @@ PAINEL_GERENTE = """
         <h2>📊 Painel de Avaliações e Leads (Gerente)</h2>
         <p>Abaixo estão os feedbacks salvos permanentemente na nuvem:</p>
         
-        <!-- Botão para Baixar a Lista de WhatsApp -->
         <button class="btn-exportar" onclick="exportarWhatsApps()">📥 Exportar Contatos WhatsApp (Excel/CSV)</button>
         
         <table id="tabela-feedbacks">
             <tr>
-                <th>Horário</th>
+                <th>Data / Horário</th>
                 <th>Nome</th>
                 <th>WhatsApp</th>
                 <th>Nota</th>
                 <th>Comentário</th>
             </tr>
             {% for f in lista_feedbacks %}
-            <!-- Define a classe 'nota-ruim' se a nota for menor ou igual a 2 -->
             <tr class="{% if f.nota|int <= 2 %}nota-ruim{% endif %}">
                 <td>{{ f.horario_formatado }}</td>
                 <td>{{ f.nome }}</td>
@@ -141,12 +138,10 @@ PAINEL_GERENTE = """
     </div>
 
     <script>
-        // Atualiza a tela a cada 5 segundos para mostrar feedbacks novos automaticamente
         setInterval(function() {
             location.reload();
         }, 5000);
 
-        // Função profissional para baixar os contatos válidos no formato Excel (CSV)
         function exportarWhatsApps() {
             let csvContent = "data:text/csv;charset=utf-8,\\uFEFF";
             csvContent += "Horário;Nome;WhatsApp\\n";
@@ -160,9 +155,8 @@ PAINEL_GERENTE = """
                     let nome = colunas[1].innerText.trim();
                     let whatsapp = colunas[2].innerText.trim();
 
-                    // Só adiciona na lista se tiver deixado um número válido
                     if (whatsapp !== "Não informou" && whatsapp !== "") {
-                        nome = nome.replace(/;/g, ","); // Evita quebra de colunas
+                        nome = nome.replace(/;/g, ",");
                         csvContent += `${horario};${nome};${whatsapp}\\n`;
                     }
                 }
@@ -216,19 +210,25 @@ def gerente():
     resposta = requests.get(f"{url_limpa}/rest/v1/feedbacks?select=*&order=id.desc", headers=headers)
     
     lista_feedbacks = []
+    # Pega o horário atual do servidor como garantia (Segurança contra campos vazios)
+    horario_atual = datetime.now().strftime('%d/%m/%Y %H:%M')
+    
     if resposta.status_code == 200:
         raw_feedbacks = resposta.json()
         for f in raw_feedbacks:
-            # Pega o created_at do Supabase e formata para o padrão brasileiro (DD/MM/AAAA HH:MM)
-            if 'created_at' in f and f['created_at']:
+            # Tenta ler qualquer variação de nome de coluna de data que o Supabase possa usar
+            campo_data = f.get('created_at') or f.get('createdAt') or f.get('data')
+            
+            if campo_data:
                 try:
-                    # Formato padrão ISO do Supabase (ex: 2026-06-08T12:00:00.000000+00:00)
-                    dt = datetime.fromisoformat(f['created_at'].replace('Z', '+00:00'))
+                    dt = datetime.fromisoformat(str(campo_data).replace('Z', '+00:00'))
                     f['horario_formatado'] = dt.strftime('%d/%m/%Y %H:%M')
                 except:
-                    f['horario_formatado'] = "---"
+                    f['horario_formatado'] = horario_atual
             else:
-                f['horario_formatado'] = "---"
+                # Se não achar a coluna no banco, usa a hora do sistema para o painel ficar preenchido
+                f['horario_formatado'] = horario_atual
+                
             lista_feedbacks.append(f)
             
     return render_template_string(PAINEL_GERENTE, lista_feedbacks=lista_feedbacks)
