@@ -99,18 +99,24 @@ PAINEL_GERENTE = """
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f6f9; padding: 30px; }
         .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        h2 { color: #333; border-bottom: 2px solid #d32f2f; padding-bottom: 10px; }
+        h2 { color: #333; border-bottom: 2px solid #d32f2f; padding-bottom: 10px; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background-color: #d32f2f; color: white; }
         tr:hover { background-color: #f1f1f1; }
+        .btn-exportar { background-color: #25D366; color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold; display: inline-block; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn-exportar:hover { background-color: #1ebd59; }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>📊 Painel de Avaliações e Leads (Gerente)</h2>
         <p>Abaixo estão os feedbacks salvos permanentemente na nuvem:</p>
-        <table>
+        
+        <!-- Botão para Baixar a Lista de WhatsApp -->
+        <button class="btn-exportar" onclick="exportarWhatsApps()">📥 Exportar Contatos WhatsApp (Excel/CSV)</button>
+        
+        <table id="tabela-feedbacks">
             <tr>
                 <th>Nome</th>
                 <th>WhatsApp</th>
@@ -127,6 +133,43 @@ PAINEL_GERENTE = """
             {% endfor %}
         </table>
     </div>
+
+    <script>
+        // Atualiza a tela a cada 5 segundos para mostrar feedbacks novos automaticamente
+        setInterval(function() {
+            location.reload();
+        }, 5000);
+
+        // Função profissional para baixar os contatos válidos no formato Excel (CSV)
+        function exportarWhatsApps() {
+            let csvContent = "data:text/csv;charset=utf-8,\\uFEFF";
+            csvContent += "Nome;WhatsApp\\n";
+
+            const linhas = document.querySelectorAll("#tabela-feedbacks tr");
+
+            for (let i = 1; i < linhas.length; i++) {
+                const colunas = linhas[i].querySelectorAll("td");
+                if (colunas.length >= 2) {
+                    let nome = colunas[0].innerText.trim();
+                    let whatsapp = colunas[1].innerText.trim();
+
+                    // Só adiciona na lista se tiver deixado um número válido
+                    if (whatsapp !== "Não informou" && whatsapp !== "") {
+                        nome = nome.replace(/;/g, ","); // Evita quebra de colunas
+                        csvContent += `${nome};${whatsapp}\\n`;
+                    }
+                }
+            }
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "lista_leads_divino_fogao.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
 </body>
 </html>
 """
